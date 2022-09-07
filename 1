@@ -1,0 +1,214 @@
+#include <iostream>
+using namespace std;
+void mbError(int n, int m) {
+	if (n != m) {
+		cout << "error";
+		exit(1);
+	}
+}
+class Vector {
+	int** arr;
+	int i;
+	int j;
+	int size;
+	Vector() {
+		arr = NULL;
+		i = -1;
+		j = -1;
+		size = 0;
+	}
+public:
+	friend class SquareMatrix;
+	int& operator[] (int q) {
+		q--;
+		if (q < 0 || q >= size) {
+			cout << "error";
+			exit(1);
+		}
+		if (i != -1)
+			return arr[i][q];
+		else
+			return arr[q][j];
+	}
+};
+class SquareMatrix {
+	int size;
+	int** arr;
+	void copy(const SquareMatrix& that) {
+		this->size = that.size;
+		this->arr = new int* [this->size];
+		for (int i = 0; i < this->size; i++) {
+			this->arr[i] = new int[this->size];
+			for (int j = 0; j < this->size; j++)
+				this->arr[i][j] = that.arr[i][j];
+		}
+	}
+public:
+	friend ostream& operator<< (ostream& out, const SquareMatrix& obj);
+	friend istream& operator>> (istream& in, SquareMatrix& obj);
+	friend class Vector;
+
+	Vector operator[] (int i) { //возвращает копию v
+		i--;
+		Vector v;
+		v.arr = this->arr;
+		v.size = this->size;
+		v.i = i;
+		return v;
+	} //удаление вектора v деструктором , тк v - локальный, перед этим конструктором создание копии v
+
+	Vector operator() (int j) {
+		j--;
+		Vector v;
+		v.arr = this->arr;
+		v.size = this->size;
+		v.j = j;
+		return v;
+	}
+
+	SquareMatrix(int n) { //конструктор
+		this->size = n;
+		this->arr = new int* [n];
+		for (int i = 0; i < n; i++) {
+			this->arr[i] = new int[n];
+			for (int j = 0; j < n; j++)
+				if (i == j)
+					this->arr[i][i] = 1;
+				else
+					this->arr[i][j] = 0;
+		}
+	}
+	SquareMatrix() { //констуктор
+		this->size = 0;
+		this->arr = NULL;
+	}
+	SquareMatrix(int n, int* const a) { //констурктор
+		this->size = n;
+		this->arr = new int* [n];
+		for (int i = 0; i < n; i++) {
+			this->arr[i] = new int[n];
+			for (int j = 0; j < n; j++)
+				if (i == j)
+					this->arr[i][i] = a[i];
+				else
+					this->arr[i][j] = 0;
+		}
+	}
+	SquareMatrix(const SquareMatrix& that) { //констурктор копий
+		this->copy(that);
+	}
+	~SquareMatrix() { //деструктор
+		for (int i = 0; i < size; i++)
+			delete arr[i];
+		delete this->arr;
+	}
+	SquareMatrix& operator= (const SquareMatrix& that) { //оператор присваивания. ВОЗВРАЩАЕТ по ссылке
+														 //чтобы не вызывать конструктор копий
+		mbError(this->size, that.size);
+		if (this != &that) {
+			this->~SquareMatrix();
+			this->copy(that);
+		}
+		return *this;
+	}
+	SquareMatrix operator+ (const SquareMatrix& that) const { //не может возвращать по ссылке, тк объект 
+															  //локальный- будет уничтожен деструктором,
+															  //на выходе создастся копия конструктором копий
+		mbError(this->size, that.size);
+		SquareMatrix S(size);
+		for (int i = 0; i < this->size; i++) {
+			for (int j = 0; j < this->size; j++)
+				S.arr[i][j] = this->arr[i][j] + that.arr[i][j];
+		}
+		return S;
+	}
+	SquareMatrix operator- (const SquareMatrix& that) const {
+		mbError(this->size, that.size);
+		SquareMatrix S(size);
+		for (int i = 0; i < this->size; i++) {
+			for (int j = 0; j < this->size; j++)
+				S.arr[i][j] = this->arr[i][j] - that.arr[i][j];
+		}
+		return S;
+	}
+	SquareMatrix operator* (const SquareMatrix& that) const {
+		mbError(this->size, that.size);
+		SquareMatrix S(size);
+		for (int i = 0; i < this->size; i++) {
+			for (int j = 0; j < this->size; j++) {
+				S.arr[i][j] = 0;
+				for (int k = 0; k < this->size; k++)
+					S.arr[i][j] += this->arr[i][k] * that.arr[k][j];
+			}
+		}
+		return S;
+	}
+	SquareMatrix operator* () const {
+		SquareMatrix S(size);
+		for (int i = 0; i < this->size; i++) {
+			for (int j = 0; j < this->size; j++) {
+				S.arr[i][j] = this->arr[j][i];
+			}
+		}
+		return S;
+	}
+	SquareMatrix operator() (int n, int m) const {
+		SquareMatrix S(size - 1);
+		n--;
+		m--;
+		int l, k = 0;
+		for (int i = 0; i < S.size; i++) {
+			if (k == n)
+				k++;
+			l = 0;
+			for (int j = 0; j < S.size; j++) {
+				if (l == m)
+					l++;
+				S.arr[i][j] = this->arr[k][l];
+				l++;
+			}
+			k++;
+		}
+		return S;
+	}
+};
+
+ostream& operator<< (ostream& out, const SquareMatrix& obj) {
+	for (int i = 0; i < obj.size; i++) {
+		for (int j = 0; j < obj.size; j++)
+			out << obj.arr[i][j] << " ";
+		out << "\n";
+	}
+	return out;
+}
+istream& operator>> (istream& in, SquareMatrix& obj) {
+	for (int i = 0; i < obj.size; i++) {
+		for (int j = 0; j < obj.size; j++)
+			in >> obj.arr[i][j];
+	}
+	return in;
+}
+
+int main() {
+	int n, k;
+	std::cin >> n >> k;
+	int* a = new int[n];
+	for (int i = 0; i < n; i++)
+		a[i] = k;
+	SquareMatrix K(n, a);
+	SquareMatrix A(n);
+	SquareMatrix B(n);
+	SquareMatrix C(n);
+	SquareMatrix D(n);
+	cin >> A >> B >> C >> D;
+
+	SquareMatrix R = (A + B * *C + K) * *D;
+	cout << R;
+	/*
+	R(1)[1] = R(2)[2];
+	R[2][2] = 2;
+
+	cout << "\n" << R;
+	*/
+	return 0;
+}
