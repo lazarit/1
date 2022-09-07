@@ -1,0 +1,518 @@
+#include <iostream>
+using namespace std;
+class animal;
+class rabbit;
+class wolf;
+void* checkNull(void* ptr) {
+	if (ptr == 0) {
+		printf("out of memery");
+		exit(0);
+	}
+	return ptr;
+}
+class cell {
+	friend class simulation;
+	friend class rabbit;
+	friend class wolf;
+	friend class hyena;
+	void copy(const cell& that) {
+		this->w = that.w;
+		this->r = that.r;
+		this->h = that.h;
+		this->capacityR = that.capacityR;
+		this->capacityW = that.capacityW;
+		this->capacityH = that.capacityH;
+		this->rabbits = (rabbit**)checkNull(malloc(capacityR * sizeof(rabbit*)));
+		for (int i = 0; i < this->r; i++) {
+			this->rabbits[i] = that.rabbits[i];
+		}
+		this->wolfs = (wolf**)checkNull(malloc(capacityW * sizeof(wolf*)));
+		for (int i = 0; i < this->w; i++) {
+			this->wolfs[i] = that.wolfs[i];
+		}
+		this->hyenas = (hyena**)checkNull(malloc(capacityH * sizeof(hyena*)));
+		for (int i = 0; i < this->h; i++) {
+			this->hyenas[i] = that.hyenas[i];
+		}
+	}
+protected:
+	int w, r, h, capacityR, capacityW, capacityH;
+	rabbit** rabbits;
+	wolf** wolfs;
+	hyena** hyenas;
+	cell() {
+		w = r = h = 0;
+		capacityR = capacityW = capacityH = 1;
+		rabbits = (rabbit**)checkNull(malloc( capacityR * sizeof(rabbit*)));
+		wolfs = (wolf**)checkNull(malloc(capacityW * sizeof(wolf*)));
+		hyenas = (hyena**)checkNull(malloc(capacityH * sizeof(hyena*)));
+	}
+	cell(const cell& that) { //констурктор копий
+		this->copy(that);
+	}
+	cell& operator= (const cell& that) { //оператор присваивания. ВОЗВРАЩАЕТ по ссылке
+														 //чтобы не вызывать конструктор копий
+		if (this != &that) {
+			this->~cell();
+			this->copy(that);
+		}
+		return *this;
+	}
+	void realloR() {
+		capacityR *= 2;
+		rabbits = (rabbit**)checkNull(realloc(rabbits, capacityR * sizeof(rabbit*)));
+	}
+	void realloW() {
+		capacityW *= 2;
+		wolfs = (wolf**)checkNull(realloc(wolfs, capacityW * sizeof(wolf*)));
+	}
+	void realloH() {
+		capacityH *= 2;
+		hyenas = (hyena**)checkNull(realloc(hyenas, capacityH * sizeof(hyena*)));
+	}
+	~cell() {
+		if (rabbits != 0) {
+			free(rabbits);
+			rabbits = 0;
+		}
+		if (wolfs != 0) {
+			free(wolfs);
+			wolfs = 0;
+		}
+		if (hyenas != 0) {
+			free(hyenas);
+			hyenas = 0;
+		}
+		//cout << "destr\n";
+	}
+};
+class animal {
+protected:
+	int x, y, dir, con, age, cnow;
+	animal(int x, int y, int dir, int con) {
+		this->x = x;
+		this->y = y;
+		this->dir = dir;
+		this->con = con;
+		this->age = 0;
+		cnow = 0; //для подсчета количества ходов перед изменением направления
+	}
+	void mov(int n, int m) {//не виртуальный, потому что этот метод вызывается от указателей на объекты
+		switch (this->dir) {
+			case 0:
+				y--;
+				break;
+			case 1:
+				x++;
+				break;
+			case 2:
+				y++;
+				break;
+			case 3:
+				x--; 
+				break;
+			default:
+				break;
+		}
+		if (n != 0) x = (x + n) % n;
+		if (m != 0) y = (y + m) % m;
+	}
+	void changedir() {
+		cnow++;
+		if (cnow == con) {
+			dir = (dir + 1) % 4;
+			cnow = 0;
+		}
+	}
+};
+class wolf: private animal {//publiс - в simulation можно использовать методы animal для wolf
+	                        //protected - в simulation нельзя использовать методы animal для wolf
+	                        //private - только классы-наследники wolf могут исп методы animal для wolf
+	friend class simulation;
+	friend class cell;
+protected: 
+	wolf* next;
+	wolf* pred;
+	int food;
+	wolf(int x, int y, int dir, int con) : animal(x, y, dir, con) {
+		food = 0;
+		pred = next = NULL;
+	}
+public:
+	void mov(int n, int m, cell*** field) {
+		this->animal::mov(n, m);
+		this->animal::mov(n, m);
+		this->animal::changedir();
+		cell* f = field[x][y];
+		if (f->w == f->capacityW) {
+			f->realloW();
+		}
+		f->wolfs[f->w] = this;
+		f->w += 1;
+	}
+	void die(wolf** wolh, wolf** wolt) {
+		if (pred != 0)
+			pred->next = next;
+		else
+			*wolh = next;
+		if (next != 0)
+			next->pred = pred;
+		else
+			*wolt = pred;
+		delete this;
+	}
+};
+class rabbit : private animal {
+	friend class simulation;
+	friend class cell;
+protected:
+	rabbit* next;
+	rabbit* pred;
+	rabbit(int x, int y, int dir, int con) : animal(x, y, dir, con) {
+		pred = next = NULL;
+	}
+public:
+	void mov(int n, int m, cell*** field) {
+		this->animal::mov(n, m);
+		this->animal::changedir();
+		cell* f = field[x][y];
+		if (f->r == f->capacityR) {
+			f->realloR();
+			}
+		f->rabbits[f->r] = this;
+		f->r += 1;
+	}
+	void die(rabbit** rabh, rabbit** rabt) {
+		if (pred != 0)
+			pred->next = next;
+		else
+			*rabh = next;
+		if (next != 0)
+			next->pred = pred;
+		else
+			*rabt = pred;
+		delete this;
+	}
+};
+
+class hyena : private animal {
+	friend class simulation;
+	friend class cell;
+protected:
+	hyena* next;
+	hyena* pred;
+	int food;
+	
+	hyena(int x, int y, int dir, int con) : animal(x, y, dir, con) {
+		food = 0;
+		pred = next = NULL;
+	}
+public: 
+	void mov(int n, int m, cell*** field) {
+		this->animal::mov(n, m);
+		this->animal::mov(n, m);
+		this->animal::changedir();
+		cell* f = field[x][y];
+		if (f->h == f->capacityH) {
+			f->realloH();
+		}
+		f->hyenas[f->h] = this;
+		f->h += 1;
+	}
+	void die(hyena** hyeh, hyena** hyet) {
+		if (pred != 0)
+			pred->next = next;
+		else
+			*hyeh = next;
+		if (next != 0)
+			next->pred = pred;
+		else
+			*hyet = pred;
+		delete this;
+	}
+};
+
+class simulation {
+	friend class cell;
+	rabbit* rabh;
+	rabbit* rabt;
+	wolf* wolh;
+	wolf* wolt;
+	hyena* hyeh;
+	hyena* hyet;
+	cell*** field;
+	int n, m, t, r, w, h;
+	int** arr;//матрица хранит количество зверей в клетках, используется только для вывода
+
+	void createR () {
+		rabh = NULL;
+	    rabt = NULL;
+		if (r > 0) {
+			int x, y, d, k;
+			cin >> x >> y >> d >> k;
+			rabh = new rabbit(x, y, d, k);
+			rabbit* rab = rabh;
+			for (int j = 1; j < r; j++) {
+				cin >> x >> y >> d >> k;
+				rab->next = new rabbit(x, y, d, k);
+				rabbit* t = rab;
+				rab = rab->next;
+				rab->pred = t;
+			}
+			rabt = rab;
+		}
+	}
+	void createW() {
+		wolh = NULL;
+		wolt = NULL;
+		if (w > 0) {
+			int x, y, d, k;
+			cin >> x >> y >> d >> k;
+			wolh = new wolf(x, y, d, k);
+			wolf* wol = wolh;
+			for (int j = 1; j < w; j++) {
+				cin >> x >> y >> d >> k;
+				wol->next = new wolf(x, y, d, k);
+				wolf* t = wol;
+				wol = wol->next;
+				wol->pred = t;
+			}
+			wolt = wol;
+		}
+	}
+	void createH() {
+		hyeh = NULL;
+		hyet = NULL;
+		if (h > 0) {
+			int x, y, d, k;
+			cin >> x >> y >> d >> k;
+			hyeh = new hyena(x, y, d, k);
+			hyena* hye = hyeh;
+			for (int j = 1; j < h; j++) {
+				cin >> x >> y >> d >> k;
+				hye->next = new hyena(x, y, d, k);
+				hyena* t = hye;
+				hye = hye->next;
+				hye->pred = t;
+			}
+			hyet = hye;
+		}
+	}
+	void feast() {
+		for (int y = 0; y < m; y++) {
+			for (int x = 0; x < n; x++) {
+				cell* f = field[x][y];
+				if (f->r > 0 && f->w > 0) { //просмотр поля после передвижения зверей
+					f->wolfs[0]->food += f->r; //кормежка волков
+					for (int j = 0; j < f->r; j++) { //удаление съеденных зайцев
+						f->rabbits[j]->die(&rabh, &rabt);
+						r--;
+					}
+					f->r = 0;
+				}
+				if (f->h > 0) {
+					int i = 0; //номер гиены
+					int j = 0; //номер животного, которого ест гиена
+					while (f->r > 0 && i < f->h) { //тогда тут нет волков и гиены едят кроликов
+						f->hyenas[i]->food++;
+						r--;
+						f->r--;
+						f->rabbits[j]->die(&rabh, &rabt);
+						j++;
+						if (f->hyenas[i]->food == 2)
+							i++;
+					}
+					j = 0;						
+					while (f->w > 0 && i < f->h) { //гиены едят волков, тут нет кроликов
+						f->hyenas[i]->food++;
+						w--;
+						f->w--;
+						f->wolfs[j]->die(&wolh, &wolt);
+						j++;
+						if (f->hyenas[i]->food == 2)
+							i++;
+					}
+					j = 0;
+					while (f->h > 1 && i < f->h) { //гиены едят гиен
+						if (f->hyenas[j] != f->hyenas[i]) {
+							f->hyenas[j]->die(&hyeh, &hyet);
+							f->hyenas[i]->food++;
+							h--;								
+							f->h--;
+							if (f->hyenas[i]->food == 2)
+								i++;
+						}
+						j++;
+					}
+				}
+				delete f;
+				field[x][y] = new cell();
+			}
+		}
+	}
+	void AgingReproductionDeath_W() {
+		wolf* wol = wolh;
+		while (wol != 0) { 
+			wol->age++;
+			if (wol->food >= 2) {
+				wolt->next = new wolf(wol->x, wol->y, wol->dir, wol->con);
+				wolt->next->pred = wolt;
+				wolt = wolt->next;
+				wol->food = 0;
+				w++;
+			}
+			wolf* t = wol->next;
+			if (wol->age == 15) {
+				wol->die(&wolh, &wolt);
+			}
+			wol = t;
+		}
+	}
+	void AgingReproductionDeath_H() {
+		hyena* hye = hyeh;
+		while (hye != 0) {
+			hye->age++;
+			if (hye->food == 2) {
+				hyet->next = new hyena(hye->x, hye->y, hye->dir, hye->con);
+				hyet->next->pred = hyet;
+				hyet = hyet->next;
+				hye->food = 0;
+				h++;
+			}
+			hyena* t = hye->next;
+			if (hye->age == 15) {
+				hye->die(&hyeh, &hyet);
+			}
+			hye = t;
+		}
+	}
+	void AgingReproductionDeath_R() {
+		rabbit* rab = rabh;
+		while (rab != 0) { 
+			rab->age++;
+			if (rab->age == 5 || rab->age == 10) {
+				rabt->next = new rabbit(rab->x, rab->y, rab->dir, rab->con);
+				rabt->next->pred = rabt;
+				rabt = rabt->next;
+				r++;
+			}
+			rabbit* t = rab->next;
+			if (rab->age == 10) {
+				rab->die(&rabh, &rabt);
+			}
+			rab = t;
+		}
+	}
+	void Cleaning_and_Printing() {
+		//очистка памяти от стека с волками и зайцами и запись конечного поля
+		rabbit* rab = rabh; 
+		while (rab != 0) {
+			arr[rab->x][rab->y]++;
+			rabbit* t = rab->next;
+			delete rab;
+			rab = t;
+		}
+		wolf* wol = wolh;
+		while (wol != 0) {
+			arr[wol->x][wol->y]--;
+			wolf* t = wol->next;
+			delete wol;
+			wol = t;
+		}
+		//гиены
+		hyena* hye = hyeh;
+		while (hye != 0) {
+			hyena* t = hye->next;
+			delete hye;
+			hye = t;
+		}
+		//печать поля
+		for (int y = 0; y < m; y++) {
+			for (int x = 0; x < n; x++) {
+				if (arr[x][y] == 0)
+					cout << "#";
+				else
+					cout << arr[x][y];
+			}
+			cout << "\n";
+		}
+		//очистка поля field
+		for (int y = 0; y < m; y++) {
+			for (int x = 0; x < n; x++) {
+				delete field[y][x];
+			}
+			delete field[y];
+		}
+		delete field;
+
+		//очистка таблички для вывода arr 
+		for (int y = 0; y < m; y++) 
+			delete arr[y];
+		delete arr;
+	}
+	void initialization(int n, int m, int t, int r, int w, int h) {
+		this->n = n;
+		this->m = m;
+		this->t = t;
+		this->r = r;
+		this->w = w;
+		this->h = h;
+		this->createR();
+		this->createW();
+		this->createH();
+		field = new cell** [m];
+		for (int i = 0; i < m; i++) {
+			field[i] = new cell* [n];
+		}
+		for (int y = 0; y < m; y++) {
+			for (int x = 0; x < n; x++) {
+				field[x][y] = new cell();
+			}
+		}
+
+		arr = new int* [m];
+		for (int y = 0; y < m; y++) {
+			arr[y] = new int[n];
+		}
+		for (int y = 0; y < m; y++) {
+			for (int x = 0; x < n; x++)
+				arr[x][y] = 0;
+		}
+	}
+	void moving() {
+		rabbit* rab = rabh;
+		wolf* wol = wolh;
+		hyena* hye = hyeh;
+		while (rab != NULL) { //движение зайцев
+			rab->mov(n, m, field);
+			rab = rab->next;
+		}
+		while (wol != 0) { //движение волков
+			wol->mov(n, m, field);
+			wol = wol->next;
+		}
+		while (hye != 0) { //движение волков
+			hye->mov(n, m, field);
+			hye = hye->next;
+		}
+	}
+
+public:
+	simulation(int n, int m, int t, int r, int w, int h) {
+		this->initialization(n, m, t, r, w, h);
+		for (int i = 0; i < t; i++) {
+			this->moving();
+			this->feast(); //кормежка волков и гиенннн
+			this->AgingReproductionDeath_W();
+			this->AgingReproductionDeath_R();
+			this->AgingReproductionDeath_H();
+		}
+		this->Cleaning_and_Printing();
+	}
+};
+
+int main() {
+	int n, m, t, r, w, h;
+	cin >> n >> m >> t >> r >> w /* >> h */;
+	simulation s(n, m, t, r, w, 0);
+}
