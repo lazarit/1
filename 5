@@ -1,0 +1,82 @@
+#include <iostream>
+#define _CRT_SECURE_NO_WARNINGS
+#include <stdio.h>
+using namespace std;
+#include <vector>
+#include <thread>
+bool inhome(int i, int j, int n) {
+	if ((i >= 0) && (i < n) && (j >= 0) && (j < n)) return 1;
+	else return 0;
+}
+void threadbody(int n, int n0, int i0, int j0, bool** now, bool** pred){
+	for (int i = i0; i < i0 + n0; i++) {
+		for (int j = j0; j < j0 + n0; j++) {
+			int neib = 0;
+			neib =
+				pred[((i - 1) + n) % n][((j - 1) + n) % n] +
+				pred[((i - 1) + n) % n][((j + 0) + n) % n] +
+				pred[((i - 1) + n) % n][((j + 1) + n) % n] +
+				pred[((i - 0) + n) % n][((j - 1) + n) % n] +
+				pred[((i - 0) + n) % n][((j + 1) + n) % n] +
+				pred[((i + 1) + n) % n][((j - 1) + n) % n] +
+				pred[((i + 1) + n) % n][((j + 0) + n) % n] +
+				pred[((i + 1) + n) % n][((j + 1) + n) % n];
+			now[i][j] = 0;
+			if (!pred[i][j] && (neib == 3)) {
+				now[i][j] = 1;
+			}
+			if (pred[i][j] && (neib == 2 || neib == 3)) {
+				now[i][j] = 1;
+			}
+		}
+	}
+}
+void threadswork(int t, int n, int n0, bool** now, bool** pred) {
+	vector<thread*> threads;
+	for (int i = 0; i < sqrt(t); i++) {
+		for (int j = 0; j < sqrt(t); j++) {
+			thread* thr = new thread(threadbody, n, n0, i * n0, j * n0, now, pred);
+			threads.push_back(thr);
+		}
+	}
+	for (auto& t : threads) {
+		t->join();
+	}
+	for (auto& t : threads) {
+		delete t;
+	}
+}
+int main() {
+	int n, t, s;
+	cin >> n >> t >> s;
+	bool** now = new bool* [n];
+	bool** pred = new bool* [n];
+	for (int i = 0; i < n; i++) {
+		now[i] = new bool[n];
+		pred[i] = new bool[n];
+		for (int j = 0; j < n; j++) {
+			cin >> pred[i][j];
+		}
+	}
+	int n0 = sqrt((n * n / t));
+
+	while (s) {
+		s--;
+		threadswork(t, n, n0, now, pred);
+		for (int i = 0; i < n; i++) {
+			for (int j = 0; j < n; j++) {
+				pred[i][j] = now[i][j];
+			}
+		}
+	}
+	for (int i = 0; i < n; i++) {
+		for (int j = 0; j < n; j++) {
+			cout << pred[i][j] << " ";
+		}
+		delete[] pred[i];
+		delete[] now[i];
+		cout << "\n";
+	}
+	delete[] pred;
+	delete[] now;
+}
