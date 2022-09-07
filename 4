@@ -1,0 +1,116 @@
+#include <iostream>
+#define _CRT_SECURE_NO_WARNINGS
+#include <stdlib.h>
+#include <stdio.h>
+using namespace std;
+#include <utility>
+#include <map>
+#include <stack>
+#include <deque>
+void creater(map<char, pair<int, char>>* operations) {
+	for (int i = 0; i < 4; i++) {
+		char ch1, ch2;
+		int x;
+		cin >> ch1 >> x >> ch2;
+		pair<int, char> p1(x, ch2);
+		operations->insert({ ch1, p1 });
+	}
+}
+void into_reverse_polish_notation(string s, deque<char>* deq, map<char, pair<int, char>>* operations) {
+	stack<char> st;
+	for (int i = 0; i < s.length(); i++) {
+		if (s[i] >= '0' && s[i] <= '9') {
+			deq->push_back(s[i]);
+		}
+		if (s[i] == '+' || s[i] == '-' || s[i] == '*' || s[i] == '/') {
+			char op1 = s[i];
+			if (!st.empty()) {
+				map<char, pair<int, char>>::iterator it_op1 = operations->find(op1);
+				char op2 = st.top();
+				if (op2 == '+' || op2 == '-' || op2 == '*' || op2 == '/') {
+					map<char, pair<int, char>>::iterator it_op2 = operations->find(op2);
+					int prior_op1 = it_op1->second.first;
+					int prior_op2 = it_op2->second.first;
+					char associat_op1 = it_op1->second.second;
+					while ((prior_op2 > prior_op1) || (prior_op2 == prior_op1) && (associat_op1 == 'L')) {
+						st.pop();
+						deq->push_back(op2);
+						if (st.empty()) {
+							break;
+						}
+						op2 = st.top();
+						if (!(op2 == '+' || op2 == '-' || op2 == '*' || op2 == '/')) {
+							break;
+						}
+						it_op2 = operations->find(op2);
+						prior_op2 = it_op2->second.first;
+					}
+				}
+			}
+			st.push(op1);
+		}
+		if (s[i] == '(') {
+			st.push(s[i]);
+		}
+		if (s[i] == ')') {
+			char top = st.top();
+			while (top != '(') {
+				deq->push_back(top);
+				st.pop();
+				top = st.top();
+			}
+			st.pop();
+		}
+	}
+	while (!st.empty()) {
+		deq->push_back(st.top());
+		st.pop();
+	}
+}
+int calculate_reverse_polish_notation(deque<char>* deq) {
+	stack<int> st;
+	while (!deq->empty()) {
+		char now = deq->front();
+		deq->pop_front();
+		if (now >= '0' && now <= '9') {
+			st.push(now- '0');
+		}
+		if (now == '+' || now == '-' || now == '*' || now == '/') {
+
+			int x2 = st.top();
+			st.pop();
+			int x1 = st.top();
+			st.pop();
+
+			if ((now == '/') && (x2 == 0)) 
+				throw "ERROR";
+			int x;
+			if (now == '+') { x = x1 + x2; }
+			if (now == '-') { x = x1 - x2; }
+			if (now == '*') { x = x1 * x2; } 
+			if (now == '/') { x = x1 / x2; }
+
+			st.push(x);
+		}
+	}
+	return st.top();
+}
+int counter(map<char, pair<int, char>>* operations) { 
+	string s;
+	cin >> s;
+	deque<char>* deq = new deque<char>;
+	into_reverse_polish_notation(s, deq, operations);
+	int x = calculate_reverse_polish_notation(deq);
+	delete deq;
+	return x;
+}
+int main() {
+	map<char, pair<int, char>>* operations = new map<char, pair<int, char>>;
+	creater(operations);
+	try {
+		cout << counter(operations) << "\n";
+	} catch (const char* ex) {
+		std::cout << ex;
+	}
+	delete operations;
+}
