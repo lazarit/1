@@ -1,0 +1,262 @@
+#include <iostream>
+using namespace std;
+template <typename K, typename V>
+class elem;
+template <typename K, typename V>
+class HashMap;
+void* checkNull(void* ptr) {
+	if (ptr == 0) {
+		printf("out of memery");
+		exit(0);
+	}
+	return ptr;
+}
+
+template <typename K, typename V>
+class elem {
+	friend class HashMap <K, V>;
+	K key;
+	V value;
+	elem<K, V>* next;
+public:
+	elem(K key1, V value1) : next(NULL), key(key1), value(value1) {}
+};
+
+template <typename K, typename V>
+class HashMap {
+	int n;
+	elem<K, V>** arr;
+	int* num;
+	int max_num;
+
+	HashMap(int percent, int n_new) {
+		n = n_new;
+		max_num = (n * percent) / 100;
+		arr = new elem<K, V>*[n];
+		num = new int[n];
+		for (int i = 0; i < n; i++) {
+			arr[i] = NULL;
+			num[i] = 0;
+		}
+	}
+	void copy(const HashMap<K, V>& that) {
+		this->n = that.n;
+		this->max_num = that.max_num;
+		arr = new elem<K, V>*[n];
+		num = new int[n];
+		for (int i = 0; i < n; i++) {
+			arr[i] = NULL;
+			num[i] = 0;
+			elem<K, V>* ptr = that.arr[i];
+			while (ptr != 0) {
+				elem<K, V>* now = ptr;
+				ptr = ptr->next;
+				this->add_new(now->key, now->value);
+			}
+		}
+	}
+	
+	elem<K, V>* find(K key1) {
+		elem<K, V>* ptr = arr[hash<K>{}(key1) % n];
+		while (ptr != NULL) {
+			if (ptr->key == key1) {
+				break;
+			}
+			else {
+				ptr = ptr->next;
+			}
+		}
+		return ptr;
+	}
+	void add_new(K key1, V value1) {
+		int ost = hash<K>{}(key1) % n;
+		elem<K, V>* ptr = arr[ost];
+		arr[ost] = new elem<K, V>(key1, value1);
+		arr[ost]->next = ptr;
+		num[ost] += 1;
+		if (num[ost] > max_num) {
+			HashMap<K, V>* ptr_h_new = new HashMap<K, V>(100, n * 2);
+			for (int i = 0; i < n; i++) {
+				elem<K, V>* ptr = arr[i];
+				while (ptr != 0) {
+					elem<K, V>* now = ptr;
+					ptr = ptr->next;
+					ptr_h_new->add_new(now->key, now->value);
+				}
+			}
+			*this = *ptr_h_new;
+			delete ptr_h_new;
+		}
+	}
+
+public:
+	class Iterator {
+		HashMap<K, V>* parent = NULL;
+		elem<K, V>* pointer = NULL;
+		int n_ptr = -1;
+	public:
+		Iterator(HashMap<K, V>* p) {
+			parent = p;
+		}
+		int hasNext() {
+			if (pointer == NULL) {
+				n_ptr += 1;
+				for (int i = n_ptr; i < parent->n; i++) {
+					elem<K, V>* ptr = parent->arr[i];
+					if (ptr != 0) {
+						pointer = ptr;
+						n_ptr = i;
+						return 1;
+					}
+				}
+			}
+			else {
+				pointer = pointer->next;
+				if (pointer == NULL) {
+					return hasNext();
+				}
+			}
+			return 0;
+		}
+		V next() {
+			return pointer->value;
+		}
+	};
+
+	Iterator iterator() {
+		return Iterator(this);
+	}
+	HashMap(int percent): HashMap(percent, 1024) {}
+	HashMap<K, V>& operator= (const HashMap<K, V>& that) { //оператор присваивания. ВОЗВРАЩАЕТ по ссылке
+														 //чтобы не вызывать конструктор копий
+		if (this != &that) {
+			this->~HashMap<K, V>();
+			this->copy(that);
+		}
+		return *this;
+	}
+	HashMap<K, V>(const HashMap<K, V>& that) { //констурктор копий
+		this->copy(that);
+	}
+	~HashMap() {
+		for (int i = 0; i < n; i++) {
+			elem<K, V>* ptr = arr[i];
+			while (ptr != 0) {
+				elem<K, V>* now = ptr;
+				ptr = ptr->next;
+				delete now;
+			}
+		}
+		delete[] arr;
+		delete[] num;
+	}
+	void add(K key1, V value1) {
+		elem<K, V>* ptr = find(key1);
+		if (ptr != NULL)
+			ptr->value = value1;
+		else
+			add_new(key1, value1);
+	}
+	void del(K key1) {
+		elem<K, V>* ptr = arr[hash<K>{}(key1) % n];
+		if (ptr == 0)
+			return;
+		if (ptr->key == key1) {
+			elem<K, V>* ptr1 = ptr->next;
+			delete ptr;
+			arr[hash<K>{}(key1) % n] = ptr1;
+			return;
+		}
+		else {
+			while (ptr->next != NULL) {
+				if (ptr->next->key == key1) {
+					elem<K, V>* ptr1 = ptr->next;
+					ptr->next = ptr->next->next;
+					delete ptr1;
+					return;
+				}
+			}
+		}
+	}
+};
+template <typename K, typename V>
+void work_with_table() {
+	int n;
+	cin >> n;
+	char ch;
+	HashMap<K, V> h(100);
+	K key;
+	V val;
+	for (int i = 0; i < n; i++) {
+		cin >> ch;
+		if (ch == 'A') {
+			cin >> key >> val;
+			h.add(key, val);
+		}
+		if (ch == 'R') {
+			cin >> key;
+			h.del(key);
+		}
+	}
+	int count = 0;
+	int unic = 0;
+	int capacity = 2;
+	int size = 0;
+	V* values = (V*)checkNull(malloc(capacity * sizeof(V)));
+
+	typename HashMap<K, V>::Iterator it = h.iterator();
+	while (it.hasNext()) {
+		V value = it.next();
+		count++;
+		int j = 0;
+		for (j = 0; j < size; j++) {
+			if (values[j] == value) {
+				break;
+			}
+		}
+		if (j == size) {
+			if (size >= capacity) {
+				capacity *= 2;
+				values = (V*)checkNull(realloc(values, capacity * sizeof(V)));
+			}
+			values[size] = value;
+			size++;
+			unic++;
+		}
+	}
+	cout << count << " " << unic << "\n";
+	free(values);
+	//counting(&h);
+}
+int main() {
+	char key_ch, val_ch;
+	cin >> key_ch >> val_ch;
+	if (key_ch == 'I' && val_ch == 'S') {
+		work_with_table<int, string>();
+	}
+	if (key_ch == 'I' && val_ch == 'I') { 
+		work_with_table<int, int>(); 
+	}
+
+	if (key_ch == 'I' && val_ch == 'D') { //
+		work_with_table<int, double>();
+	}
+	if (key_ch == 'D' && val_ch == 'D') { //
+		work_with_table<double, double>();
+	}
+	if (key_ch == 'D' && val_ch == 'I') { //
+		work_with_table<double, int>();
+	}
+	if (key_ch == 'D' && val_ch == 'S') { //
+		work_with_table<double, string>();
+	}
+	if (key_ch == 'S' && val_ch == 'S') { //
+		work_with_table<string, string>();
+	}
+	if (key_ch == 'S' && val_ch == 'I') { //
+		work_with_table<string, int>();
+	}
+	if (key_ch == 'S' && val_ch == 'D') { //
+		work_with_table<string, double>();
+	}
+}
